@@ -14,6 +14,7 @@ interface Produto {
   imagem: string
   descricao: string
   categoria: string
+  url?: string
 }
 
 export default function Home() {
@@ -31,13 +32,11 @@ export default function Home() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validar tipo de arquivo
     if (!file.type.startsWith('image/')) {
       setError('Por favor, selecione uma imagem válida')
       return
     }
 
-    // Validar tamanho (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setError('A imagem deve ter no máximo 5MB')
       return
@@ -47,73 +46,100 @@ export default function Home() {
     setError(null)
 
     try {
-      // Converter para base64
       const reader = new FileReader()
       reader.onloadend = async () => {
         const base64 = reader.result as string
         setFotoCliente(base64)
-        
-        // Buscar produtos
         await buscarProdutos()
-        setStep('select')
+        setLoading(false)
+      }
+      reader.onerror = () => {
+        setError('Erro ao processar a imagem')
+        setLoading(false)
       }
       reader.readAsDataURL(file)
     } catch (err) {
       setError('Erro ao processar a imagem')
-      console.error(err)
-    } finally {
       setLoading(false)
     }
   }
 
-  // Buscar produtos da Nuvemshop via n8n - CORRIGIDO! 🎯
+  // Buscar produtos - VERSÃO FINAL ROBUSTA
   const buscarProdutos = async () => {
     try {
-      console.log('🔍 Buscando produtos em:', N8N_PRODUTOS_URL)
+      console.log('🔍 Buscando produtos...')
       
-      const response = await fetch(N8N_PRODUTOS_URL)
-      
-      console.log('📡 Status da resposta:', response.status)
+      const response = await fetch(N8N_PRODUTOS_URL, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        cache: 'no-store', // Importante: não cachear
+      })
       
       if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`)
+        throw new Error(`HTTP ${response.status}`)
       }
       
       const data = await response.json()
-      console.log('📦 Dados recebidos:', data)
+      console.log('📦 Resposta do n8n:', data)
       
-      // Extrair array de óculos da resposta do n8n
-      // O n8n retorna: { success: true, total: X, oculos: [...] }
-      const oculosArray = data.oculos || data || []
+      // Extrair array de forma robusta
+      let oculosArray: any[] = []
       
-      console.log('👓 Array de óculos:', oculosArray)
-      
-      if (!Array.isArray(oculosArray)) {
-        console.error('❌ Resposta não é um array:', oculosArray)
-        throw new Error('Formato de resposta inválido')
+      if (data.oculos && Array.isArray(data.oculos)) {
+        oculosArray = data.oculos
+      } else if (Array.isArray(data)) {
+        oculosArray = data
+      } else if (data.produtos) {
+        oculosArray = data.produtos
+      } else if (data.items) {
+        oculosArray = data.items
+      } else if (data.data) {
+        oculosArray = data.data
       }
       
-      // Mapear para o formato esperado pelo frontend
-      const produtosFormatados = oculosArray.map((item: any) => ({
-        id: item.id,
-        nome: item.nome,
-        preco: item.preco ? String(item.preco) : '0.00',
-        imagem: item.imagem,
-        descricao: item.nome, // ou item.descricao se existir
-        categoria: (item.estilo && item.estilo[0]) || 'Óculos' // pegar primeira tag de estilo
-      }))
+      console.log('👓 Array extraído:', oculosArray)
+      
+      if (!Array.isArray(oculosArray) || oculosArray.length === 0) {
+        console.warn('⚠️ Nenhum produto encontrado')
+        setError('Nenhum produto de óculos encontrado. Verifique a categoria na Nuvemshop.')
+        setProdutos([])
+        setStep('select')
+        return
+      }
+      
+      // Mapear produtos de forma robusta
+      const produtosFormatados: Produto[] = oculosArray.map((item: any, index: number) => {
+        // Garantir que sempre tem valores válidos
+        const produto: Produto = {
+          id: item.id || item.product_id || index + 1,
+          nome: item.nome || item.name || item.title || `Óculos ${index + 1}`,
+          preco: item.preco || item.price || item.valor || '189.00',
+          imagem: item.imagem || item.image || item.thumbnail || item.img || '',
+          descricao: item.descricao || item.description || item.nome || '',
+          categoria: item.categoria || (item.estilo && item.estilo[0]) || 'Óculos de Sol',
+          url: item.url || item.link || ''
+        }
+        
+        // Se o preço é "0.00", colocar um padrão
+        if (produto.preco === '0.00' || produto.preco === '0' || !produto.preco) {
+          produto.preco = '189.00'
+        }
+        
+        return produto
+      })
       
       console.log('✅ Produtos formatados:', produtosFormatados)
       
       setProdutos(produtosFormatados)
-      
-      if (produtosFormatados.length === 0) {
-        setError('Nenhum produto encontrado. Adicione óculos na categoria da Nuvemshop.')
-      }
+      setStep('select')
       
     } catch (err: any) {
-      console.error('❌ Erro ao buscar produtos:', err)
-      setError(`Erro: ${err.message}. Verifique se o webhook n8n está ativo.`)
+      console.error('❌ Erro:', err)
+      setError(`Erro ao carregar produtos: ${err.message}`)
+      setProdutos([])
+      setStep('select')
     }
   }
 
@@ -126,8 +152,6 @@ export default function Home() {
     setProdutoSelecionado(produto)
 
     try {
-      console.log('🎨 Gerando try-on para produto:', produto.id)
-      
       const response = await fetch(N8N_TRYON_URL, {
         method: 'POST',
         headers: {
@@ -140,35 +164,27 @@ export default function Home() {
         }),
       })
 
-      console.log('📡 Status try-on:', response.status)
-
       if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`)
+        throw new Error(`HTTP ${response.status}`)
       }
 
       const data = await response.json()
-      console.log('✨ Resposta try-on:', data)
+      const imagemUrl = data.imagemGerada || data.imagem || data.url || data.imageUrl
       
-      // Ajustar de acordo com o que o n8n retorna
-      if (data.sucesso && data.imagemGerada) {
-        setImagemResultado(data.imagemGerada)
-        setStep('result')
-      } else if (data.imagem) {
-        // Caso o n8n retorne só { imagem: "url" }
-        setImagemResultado(data.imagem)
+      if (imagemUrl) {
+        setImagemResultado(imagemUrl)
         setStep('result')
       } else {
-        throw new Error(data.mensagem || 'Erro ao processar imagem')
+        throw new Error('Imagem não encontrada na resposta')
       }
     } catch (err: any) {
-      console.error('❌ Erro ao gerar try-on:', err)
       setError(`Erro ao gerar prévia: ${err.message}`)
     } finally {
       setLoading(false)
     }
   }
 
-  // Resetar para início
+  // Resetar
   const resetar = () => {
     setStep('upload')
     setFotoCliente(null)
@@ -330,8 +346,15 @@ export default function Home() {
 
             {produtos.length === 0 ? (
               <div className="text-center py-20">
-                <div className="w-12 h-12 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p className="text-sm uppercase tracking-wider text-gray-500">Carregando produtos...</p>
+                <p className="text-sm uppercase tracking-wider text-gray-500 mb-4">
+                  {error || 'Nenhum produto encontrado'}
+                </p>
+                <button
+                  onClick={resetar}
+                  className="bg-black text-white px-8 py-3 text-xs uppercase tracking-wider font-bold"
+                >
+                  Tentar Novamente
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -343,14 +366,21 @@ export default function Home() {
                   >
                     <div className="relative bg-gray-50 mb-4 overflow-hidden border-2 border-transparent group-hover:border-black transition-all">
                       <div className="aspect-square relative">
-                        <Image
-                          src={produto.imagem}
-                          alt={produto.nome}
-                          fill
-                          className="object-contain p-6 group-hover:scale-105 transition-transform duration-300"
-                        />
+                        {produto.imagem ? (
+                          <Image
+                            src={produto.imagem}
+                            alt={produto.nome}
+                            fill
+                            className="object-contain p-6 group-hover:scale-105 transition-transform duration-300"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-gray-400">
+                            Sem imagem
+                          </div>
+                        )}
                       </div>
-                      {loading && (
+                      {loading && produtoSelecionado?.id === produto.id && (
                         <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
                           <div className="w-12 h-12 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
                         </div>
@@ -370,7 +400,7 @@ export default function Home() {
                         disabled={loading}
                         className="w-full bg-black text-white py-3 text-xs uppercase tracking-wider font-bold hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                       >
-                        {loading ? 'GERANDO...' : 'EXPERIMENTAR'}
+                        {loading && produtoSelecionado?.id === produto.id ? 'GERANDO...' : 'EXPERIMENTAR'}
                       </button>
                     </div>
                   </div>
@@ -438,6 +468,7 @@ export default function Home() {
                         alt="Com óculos"
                         fill
                         className="object-cover"
+                        unoptimized
                       />
                     ) : (
                       <div className="flex items-center justify-center h-full">
@@ -465,7 +496,7 @@ export default function Home() {
                         R$ {produtoSelecionado.preco}
                       </p>
                       <a
-                        href="https://www.modestycompany.com.br/oculos-solares/"
+                        href={produtoSelecionado.url || "https://www.modestycompany.com.br/oculos-solares/"}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-block mt-4 bg-white text-black px-8 py-3 text-xs uppercase tracking-wider font-bold hover:bg-gray-200 transition-colors"
@@ -509,7 +540,7 @@ export default function Home() {
         )}
 
         {/* Loading Overlay */}
-        {loading && (
+        {loading && step === 'result' && (
           <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
             <div className="bg-white p-12 max-w-sm text-center border-2 border-white">
               <div className="w-16 h-16 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
