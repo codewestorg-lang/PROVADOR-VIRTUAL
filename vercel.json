@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "name": "provador-virtual-modesty",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_N8N_PRODUTOS_URL": "@n8n_produtos_url",
+    "NEXT_PUBLIC_N8N_TRYON_URL": "@n8n_tryon_url"
+  }
+}
