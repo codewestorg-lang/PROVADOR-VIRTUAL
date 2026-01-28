@@ -66,17 +66,54 @@ export default function Home() {
     }
   }
 
-  // Buscar produtos da Nuvemshop via n8n
+  // Buscar produtos da Nuvemshop via n8n - CORRIGIDO! 🎯
   const buscarProdutos = async () => {
     try {
+      console.log('🔍 Buscando produtos em:', N8N_PRODUTOS_URL)
+      
       const response = await fetch(N8N_PRODUTOS_URL)
-      if (!response.ok) throw new Error('Erro ao buscar produtos')
+      
+      console.log('📡 Status da resposta:', response.status)
+      
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`)
+      }
       
       const data = await response.json()
-      setProdutos(Array.isArray(data) ? data : [])
-    } catch (err) {
-      console.error('Erro ao buscar produtos:', err)
-      setError('Não foi possível carregar os produtos')
+      console.log('📦 Dados recebidos:', data)
+      
+      // Extrair array de óculos da resposta do n8n
+      // O n8n retorna: { success: true, total: X, oculos: [...] }
+      const oculosArray = data.oculos || data || []
+      
+      console.log('👓 Array de óculos:', oculosArray)
+      
+      if (!Array.isArray(oculosArray)) {
+        console.error('❌ Resposta não é um array:', oculosArray)
+        throw new Error('Formato de resposta inválido')
+      }
+      
+      // Mapear para o formato esperado pelo frontend
+      const produtosFormatados = oculosArray.map((item: any) => ({
+        id: item.id,
+        nome: item.nome,
+        preco: item.preco ? String(item.preco) : '0.00',
+        imagem: item.imagem,
+        descricao: item.nome, // ou item.descricao se existir
+        categoria: (item.estilo && item.estilo[0]) || 'Óculos' // pegar primeira tag de estilo
+      }))
+      
+      console.log('✅ Produtos formatados:', produtosFormatados)
+      
+      setProdutos(produtosFormatados)
+      
+      if (produtosFormatados.length === 0) {
+        setError('Nenhum produto encontrado. Adicione óculos na categoria da Nuvemshop.')
+      }
+      
+    } catch (err: any) {
+      console.error('❌ Erro ao buscar produtos:', err)
+      setError(`Erro: ${err.message}. Verifique se o webhook n8n está ativo.`)
     }
   }
 
@@ -89,6 +126,8 @@ export default function Home() {
     setProdutoSelecionado(produto)
 
     try {
+      console.log('🎨 Gerando try-on para produto:', produto.id)
+      
       const response = await fetch(N8N_TRYON_URL, {
         method: 'POST',
         headers: {
@@ -101,19 +140,29 @@ export default function Home() {
         }),
       })
 
-      if (!response.ok) throw new Error('Erro ao gerar try-on')
+      console.log('📡 Status try-on:', response.status)
+
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`)
+      }
 
       const data = await response.json()
+      console.log('✨ Resposta try-on:', data)
       
+      // Ajustar de acordo com o que o n8n retorna
       if (data.sucesso && data.imagemGerada) {
         setImagemResultado(data.imagemGerada)
+        setStep('result')
+      } else if (data.imagem) {
+        // Caso o n8n retorne só { imagem: "url" }
+        setImagemResultado(data.imagem)
         setStep('result')
       } else {
         throw new Error(data.mensagem || 'Erro ao processar imagem')
       }
-    } catch (err) {
-      console.error('Erro ao gerar try-on:', err)
-      setError('Não foi possível gerar a prévia. Tente novamente.')
+    } catch (err: any) {
+      console.error('❌ Erro ao gerar try-on:', err)
+      setError(`Erro ao gerar prévia: ${err.message}`)
     } finally {
       setLoading(false)
     }
