@@ -18,6 +18,10 @@ interface Produto {
 }
 
 export default function Home() {
+  console.log('🚀 App Initialized');
+  console.log('🔗 Webhook Produtos:', N8N_PRODUTOS_URL);
+  console.log('🔗 Webhook TryOn:', N8N_TRYON_URL);
+
   const [step, setStep] = useState<'upload' | 'select' | 'result'>('upload')
   const [fotoCliente, setFotoCliente] = useState<string | null>(null)
   const [produtos, setProdutos] = useState<Produto[]>([])
