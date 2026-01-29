@@ -85,7 +85,7 @@ export default function Home() {
           id: item.id || i,
           nome: item.nome || `Óculos ${i + 1}`,
           imagem: item.imagem || '',
-          thumbnail: item.thumbnail || item.imagem || '',
+          thumbnail: item.thumbnail && !item.thumbnail.includes('-640-640.jpg') ? item.thumbnail : item.imagem || '',
           preco: item.preco || '168.00',
           marca: item.marca || 'MODESTY',
           url: item.url || ''
