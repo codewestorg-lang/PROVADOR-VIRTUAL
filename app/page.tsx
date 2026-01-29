@@ -232,6 +232,7 @@ export default function Home() {
                   )}
                 </div>
                 <p className="font-bold uppercase tracking-widest text-sm">{loading ? 'Processando...' : 'Enviar Foto'}</p>
+                <p className="text-[10px] text-gray-400 uppercase tracking-widest">Suporta arquivos grandes (até 20MB)</p>
               </div>
             </div>
           </div>
@@ -264,7 +265,14 @@ export default function Home() {
                       className={`group cursor-pointer space-y-4 p-4 rounded-2xl border-2 transition-all ${produtoSelecionado?.id === produto.id ? 'border-black bg-gray-50' : 'border-transparent hover:bg-gray-50'}`}
                     >
                       <div className="aspect-square relative bg-white rounded-xl overflow-hidden">
-                        <Image src={produto.thumbnail || produto.imagem} alt={produto.nome} fill className="object-contain p-4 group-hover:scale-110 transition-transform" unoptimized />
+                        <Image 
+                          src={produto.thumbnail || produto.imagem} 
+                          alt={produto.nome} 
+                          fill 
+                          sizes="(max-width: 768px) 50vw, 33vw"
+                          className="object-contain p-4 group-hover:scale-110 transition-transform" 
+                          unoptimized 
+                        />
                       </div>
                       <div className="text-center space-y-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{produto.marca}</p>
