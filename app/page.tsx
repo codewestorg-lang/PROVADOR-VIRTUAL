@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 
-// URLs dos webhooks n8n
-const N8N_PRODUTOS_URL = process.env.NEXT_PUBLIC_N8N_PRODUTOS_URL || 'https://testes-n8n.t4tvrg.easypanel.host/webhook/produtos'
-const N8N_TRYON_URL = process.env.NEXT_PUBLIC_N8N_TRYON_URL || 'https://testes-n8n.t4tvrg.easypanel.host/webhook/gerar-tryon'
+// URLs das APIs internas (proxy para n8n)
+const API_PRODUTOS_URL = '/api/produtos'
+const API_TRYON_URL = '/api/tryon'
 
 interface Produto {
   id: number
@@ -33,7 +33,7 @@ export default function Home() {
   useEffect(() => {
     async function testConnection() {
       try {
-        const res = await fetch(N8N_PRODUTOS_URL, { method: 'OPTIONS' }).catch(() => ({ ok: false }));
+        const res = await fetch(API_PRODUTOS_URL).catch(() => ({ ok: false }));
         setNetworkStatus(res.ok ? 'ok' : 'fail');
       } catch (e) {
         setNetworkStatus('fail');
@@ -67,7 +67,7 @@ export default function Home() {
     setDebugInfo('Chamando webhook de produtos...')
     
     try {
-      const response = await fetch(N8N_PRODUTOS_URL, {
+      const response = await fetch(API_PRODUTOS_URL, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       })
@@ -110,7 +110,7 @@ export default function Home() {
     setDebugInfo(`Enviando para processamento IA: ${produto.nome}`)
 
     try {
-      const response = await fetch(N8N_TRYON_URL, {
+      const response = await fetch(API_TRYON_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
