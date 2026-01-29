@@ -64,42 +64,59 @@ export default function Home() {
     }
   }
 
-  // Buscar produtos - VERSÃO FINAL ROBUSTA
+  // 🔧 FUNÇÃO CORRIGIDA - Buscar produtos
   const buscarProdutos = async () => {
     try {
       console.log('🔍 Buscando produtos...')
+      console.log('🔗 URL:', N8N_PRODUTOS_URL)
       
       const response = await fetch(N8N_PRODUTOS_URL, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
         },
-        cache: 'no-store', // Importante: não cachear
+        cache: 'no-store',
       })
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       
-      const data = await response.json()
-      console.log('📦 Resposta do n8n:', data)
+      let data = await response.json()
+      console.log('📦 Resposta do n8n (raw):', data)
+      console.log('📦 Tipo de data:', typeof data, Array.isArray(data) ? '(array)' : '(objeto)')
       
-      // Extrair array de forma robusta
+      // 🔧 FIX 1: Se a resposta for um array, extrair o primeiro elemento
+      if (Array.isArray(data) && data.length > 0) {
+        console.log('⚠️ Resposta é um array, extraindo primeiro elemento...')
+        data = data[0]
+        console.log('📦 Dados após extração:', data)
+      }
+      
+      // Extrair array de produtos de forma robusta
       let oculosArray: any[] = []
       
       if (data.oculos && Array.isArray(data.oculos)) {
+        console.log('✅ Encontrado data.oculos')
         oculosArray = data.oculos
       } else if (Array.isArray(data)) {
+        console.log('✅ data é um array direto')
         oculosArray = data
-      } else if (data.produtos) {
+      } else if (data.produtos && Array.isArray(data.produtos)) {
+        console.log('✅ Encontrado data.produtos')
         oculosArray = data.produtos
-      } else if (data.items) {
+      } else if (data.items && Array.isArray(data.items)) {
+        console.log('✅ Encontrado data.items')
         oculosArray = data.items
-      } else if (data.data) {
+      } else if (data.data && Array.isArray(data.data)) {
+        console.log('✅ Encontrado data.data')
         oculosArray = data.data
+      } else {
+        console.warn('⚠️ Estrutura de dados não reconhecida:', Object.keys(data))
       }
       
       console.log('👓 Array extraído:', oculosArray)
+      console.log('👓 Quantidade de produtos:', oculosArray.length)
       
       if (!Array.isArray(oculosArray) || oculosArray.length === 0) {
         console.warn('⚠️ Nenhum produto encontrado')
@@ -111,6 +128,8 @@ export default function Home() {
       
       // Mapear produtos de forma robusta
       const produtosFormatados: Produto[] = oculosArray.map((item: any, index: number) => {
+        console.log(`🔍 Processando produto ${index + 1}:`, item)
+        
         // Garantir que sempre tem valores válidos
         const produto: Produto = {
           id: item.id || item.product_id || index + 1,
@@ -127,6 +146,13 @@ export default function Home() {
           produto.preco = '189.00'
         }
         
+        // 🔧 FIX 2: Validar se a imagem existe
+        if (!produto.imagem) {
+          console.warn(`⚠️ Produto ${produto.nome} não tem imagem`)
+        } else {
+          console.log(`✅ Produto ${produto.nome} - Imagem: ${produto.imagem.substring(0, 50)}...`)
+        }
+        
         return produto
       })
       
@@ -136,7 +162,8 @@ export default function Home() {
       setStep('select')
       
     } catch (err: any) {
-      console.error('❌ Erro:', err)
+      console.error('❌ Erro ao buscar produtos:', err)
+      console.error('❌ Stack:', err.stack)
       setError(`Erro ao carregar produtos: ${err.message}`)
       setProdutos([])
       setStep('select')
@@ -152,6 +179,9 @@ export default function Home() {
     setProdutoSelecionado(produto)
 
     try {
+      console.log('🎨 Gerando try-on para:', produto.nome)
+      console.log('🔗 URL:', N8N_TRYON_URL)
+      
       const response = await fetch(N8N_TRYON_URL, {
         method: 'POST',
         headers: {
@@ -165,19 +195,24 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
       const data = await response.json()
+      console.log('🎨 Resposta do try-on:', data)
+      
       const imagemUrl = data.imagemGerada || data.imagem || data.url || data.imageUrl
       
       if (imagemUrl) {
+        console.log('✅ Imagem gerada:', imagemUrl)
         setImagemResultado(imagemUrl)
         setStep('result')
       } else {
+        console.error('❌ Imagem não encontrada na resposta:', data)
         throw new Error('Imagem não encontrada na resposta')
       }
     } catch (err: any) {
+      console.error('❌ Erro ao gerar try-on:', err)
       setError(`Erro ao gerar prévia: ${err.message}`)
     } finally {
       setLoading(false)
@@ -186,6 +221,7 @@ export default function Home() {
 
   // Resetar
   const resetar = () => {
+    console.log('🔄 Resetando aplicação')
     setStep('upload')
     setFotoCliente(null)
     setProdutos([])
@@ -197,6 +233,8 @@ export default function Home() {
     }
   }
 
+  // ... (resto do código JSX permanece igual)
+  
   return (
     <main className="min-h-screen bg-white">
       {/* Header Modesty Style */}
@@ -280,23 +318,23 @@ export default function Home() {
                         <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
                           <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
-                        <p className="text-base font-medium mb-1 uppercase tracking-wide">
-                          Selecionar Foto
+                        <p className="text-sm uppercase tracking-wider mb-2">
+                          Clique para selecionar
                         </p>
-                        <p className="text-xs text-gray-500 uppercase tracking-wider">
-                          JPG, PNG até 5MB
+                        <p className="text-xs text-gray-500">
+                          JPG, PNG ou WEBP (máx. 5MB)
                         </p>
                       </>
                     )}
                   </div>
                 </label>
 
-                <div className="bg-gray-50 border border-gray-200 p-6">
-                  <p className="text-xs font-bold uppercase tracking-wider mb-3">💡 Dicas</p>
-                  <ul className="text-sm text-gray-700 space-y-2">
+                <div className="text-xs text-gray-500 space-y-2">
+                  <p className="font-bold uppercase tracking-wider">Dicas para melhor resultado:</p>
+                  <ul className="space-y-1 pl-4">
                     <li className="flex items-start">
                       <span className="mr-2">•</span>
-                      <span>Foto frontal com rosto centralizado</span>
+                      <span>Rosto frontal e centralizado</span>
                     </li>
                     <li className="flex items-start">
                       <span className="mr-2">•</span>
@@ -420,7 +458,7 @@ export default function Home() {
         )}
 
         {/* Step 3: Resultado */}
-        {step === 'result' && (
+        {step === 'result' && imagemResultado && (
           <div>
             <div className="text-center mb-12">
               <div className="text-xs tracking-[0.2em] uppercase text-gray-500 mb-3">
@@ -448,7 +486,7 @@ export default function Home() {
                     {fotoCliente && (
                       <Image
                         src={fotoCliente}
-                        alt="Foto original"
+                        alt="Original"
                         fill
                         className="object-cover"
                       />
@@ -456,113 +494,64 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Com Óculos */}
+                {/* Resultado */}
                 <div>
                   <div className="text-xs uppercase tracking-wider text-gray-500 mb-3 text-center">
                     Com os Óculos
                   </div>
                   <div className="relative aspect-square border-2 border-black overflow-hidden bg-gray-50">
-                    {imagemResultado ? (
-                      <Image
-                        src={imagemResultado}
-                        alt="Com óculos"
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="w-12 h-12 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
-                      </div>
-                    )}
+                    <Image
+                      src={imagemResultado}
+                      alt="Resultado"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
                   </div>
                 </div>
               </div>
-
-              {/* Informações do Produto */}
-              {produtoSelecionado && (
-                <div className="bg-black text-white p-8 mb-8">
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="text-center md:text-left">
-                      <h4 className="text-xl font-bold uppercase tracking-wide mb-2">
-                        {produtoSelecionado.nome}
-                      </h4>
-                      <p className="text-xs uppercase tracking-wider text-gray-400">
-                        {produtoSelecionado.categoria}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-3xl font-bold">
-                        R$ {produtoSelecionado.preco}
-                      </p>
-                      <a
-                        href={produtoSelecionado.url || "https://www.modestycompany.com.br/oculos-solares/"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block mt-4 bg-white text-black px-8 py-3 text-xs uppercase tracking-wider font-bold hover:bg-gray-200 transition-colors"
-                      >
-                        Comprar Agora
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Ações */}
-              <div className="grid md:grid-cols-2 gap-4">
-                <button
-                  onClick={() => setStep('select')}
-                  className="bg-white border-2 border-black text-black py-4 text-xs uppercase tracking-wider font-bold hover:bg-black hover:text-white transition-all"
-                >
-                  Experimentar Outro Modelo
-                </button>
+              <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
                 <button
                   onClick={resetar}
-                  className="bg-black text-white py-4 text-xs uppercase tracking-wider font-bold hover:bg-gray-800 transition-colors"
+                  className="bg-white border-2 border-black text-black px-8 py-3 text-xs uppercase tracking-wider font-bold hover:bg-gray-50 transition-colors"
                 >
-                  Nova Foto
+                  ← Experimentar Outro
                 </button>
-              </div>
-
-              {imagemResultado && (
-                <div className="mt-8 text-center">
+                
+                {produtoSelecionado?.url && (
                   <a
-                    href={imagemResultado}
-                    download="modesty-provador-virtual.jpg"
-                    className="text-xs uppercase tracking-wider text-gray-600 hover:text-black underline underline-offset-4"
+                    href={produtoSelecionado.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-black text-white px-8 py-3 text-xs uppercase tracking-wider font-bold hover:bg-gray-800 transition-colors"
                   >
-                    ↓ Baixar Imagem
+                    Comprar Agora →
                   </a>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Loading Overlay */}
-        {loading && step === 'result' && (
-          <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-            <div className="bg-white p-12 max-w-sm text-center border-2 border-white">
-              <div className="w-16 h-16 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-              <p className="text-lg font-bold uppercase tracking-wider mb-2">
-                Gerando sua prévia
-              </p>
-              <p className="text-xs uppercase tracking-wider text-gray-500">
-                Aguarde alguns segundos
-              </p>
+                )}
+                
+                <a
+                  href={imagemResultado}
+                  download="provador-virtual-modesty.jpg"
+                  className="text-sm uppercase tracking-wider text-gray-600 hover:text-black underline underline-offset-4"
+                >
+                  ↓ Baixar Imagem
+                </a>
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 mt-20 py-8 bg-white">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">
-            MODESTY COMPANY <span className="text-[8px] align-super">®</span>
+      <footer className="border-t border-gray-200 py-8 px-4 mt-16">
+        <div className="max-w-7xl mx-auto text-center">
+          <p className="text-xs uppercase tracking-wider text-gray-500">
+            MODESTY COMPANY <span className="align-super text-[0.6rem]">®</span> 2026
           </p>
-          <p className="text-xs text-gray-400">
-            © 2026 Todos os direitos reservados
+          <p className="text-xs text-gray-400 mt-2">
+            Powered by AI Technology
           </p>
         </div>
       </footer>
