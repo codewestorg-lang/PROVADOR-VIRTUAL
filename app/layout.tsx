@@ -7,6 +7,10 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Provador Virtual - Modesty Company',
   description: 'Experimente nossos óculos virtualmente com tecnologia AI',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/favicon.png',
+  },
 }
 
 export default function RootLayout({
