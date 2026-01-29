@@ -148,80 +148,121 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-black p-4 md:p-8">
-      <header className="max-w-4xl mx-auto flex justify-between items-center mb-12 border-b pb-6">
-        <h1 className="text-2xl font-black tracking-tighter uppercase">MODESTY COMPANY ®</h1>
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${networkStatus === 'ok' ? 'bg-green-500' : networkStatus === 'fail' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`}></div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Status n8n</span>
-        </div>
-      </header>
-
-      <div className="max-w-4xl mx-auto">
-        {error && (
-          <div className="mb-8 p-6 bg-red-50 border-2 border-red-100 rounded-2xl text-red-800">
-            <p className="font-bold mb-1 uppercase text-xs tracking-widest">⚠️ Atenção</p>
-            <p className="text-sm mb-4">{error}</p>
-            {debugInfo && <code className="block p-3 bg-white/50 rounded text-[10px] mb-4 break-all">{debugInfo}</code>}
-            <button onClick={() => buscarProdutos()} className="bg-red-800 text-white px-6 py-2 rounded-full text-xs font-bold uppercase">Tentar Novamente</button>
+    <div className="min-h-screen bg-white text-black flex flex-col">
+      <main className="flex-1 p-4 md:p-8">
+        {/* Header com Logo */}
+        <header className="max-w-4xl mx-auto flex justify-between items-center mb-12 border-b pb-6">
+          <div className="flex items-center gap-4">
+            <Image src="/logo.png" alt="Modesty Company" width={60} height={60} className="object-contain" />
+            <h1 className="text-2xl font-black tracking-tighter uppercase">MODESTY COMPANY ®</h1>
           </div>
-        )}
-
-        {step === 'upload' && (
-          <div className="text-center space-y-8 py-12">
-            <div className="space-y-2">
-              <h2 className="text-5xl font-black uppercase tracking-tighter">Provador Virtual</h2>
-              <p className="text-gray-400 uppercase text-[10px] tracking-[0.4em]">Powered by AI Technology</p>
-            </div>
-            <div className="relative group max-w-md mx-auto">
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFotoUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-              <div className="border-2 border-dashed border-gray-200 rounded-[40px] p-16 group-hover:border-black transition-all">
-                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-black group-hover:text-white transition-all">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth="2" strokeLinecap="round"/></svg>
-                </div>
-                <p className="font-bold uppercase text-xs tracking-widest">Carregar Foto</p>
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${networkStatus === 'ok' ? 'bg-green-500' : networkStatus === 'fail' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`}></div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Status n8n</span>
           </div>
-        )}
+        </header>
 
-        {step === 'select' && (
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="md:col-span-1">
-              <div className="aspect-[3/4] relative rounded-3xl overflow-hidden shadow-2xl">
-                {fotoCliente && <Image src={fotoCliente} alt="Sua foto" fill className="object-cover" />}
-                <button onClick={resetar} className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest">Trocar Foto</button>
-              </div>
+        <div className="max-w-4xl mx-auto">
+          {error && (
+            <div className="mb-8 p-6 bg-red-50 border-2 border-red-100 rounded-2xl text-red-800">
+              <p className="font-bold mb-1 uppercase text-xs tracking-widest">⚠️ Atenção</p>
+              <p className="text-sm mb-4">{error}</p>
+              {debugInfo && <code className="block p-3 bg-white/50 rounded text-[10px] mb-4 break-all">{debugInfo}</code>}
+              <button onClick={() => buscarProdutos()} className="bg-red-800 text-white px-6 py-2 rounded-full text-xs font-bold uppercase">Tentar Novamente</button>
             </div>
-            <div className="md:col-span-2 space-y-6">
-              <h3 className="text-2xl font-black uppercase tracking-tighter">Escolha seu Óculos</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {produtos.map((p) => (
-                  <div key={p.id} onClick={() => gerarTryOn(p)} className="group cursor-pointer border rounded-2xl p-4 hover:border-black transition-all">
-                    <div className="aspect-square relative mb-4">
-                      <Image src={p.thumbnail} alt={p.nome} fill className="object-contain group-hover:scale-110 transition-all" unoptimized />
-                    </div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">{p.marca}</p>
-                    <p className="text-xs font-bold truncate">{p.nome}</p>
+          )}
+
+          {step === 'upload' && (
+            <div className="text-center space-y-8 py-12">
+              <div className="space-y-2">
+                <h2 className="text-5xl font-black uppercase tracking-tighter">Provador Virtual</h2>
+                <p className="text-gray-400 uppercase text-[10px] tracking-[0.4em]">Powered by AI Technology</p>
+              </div>
+
+              {/* Instruções de como tirar a foto */}
+              <div className="bg-gray-50 rounded-3xl p-8 mb-8 border border-gray-200">
+                <h3 className="text-xl font-black uppercase tracking-tighter mb-6">Como Tirar sua Foto</h3>
+                <div className="grid md:grid-cols-3 gap-6 text-left">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 bg-black text-white rounded-full flex items-center justify-center font-black text-lg">1</div>
+                    <p className="font-black uppercase text-xs tracking-widest text-center">Iluminação Clara</p>
+                    <p className="text-xs text-gray-600 text-center">Escolha um local bem iluminado, de preferência com luz natural</p>
                   </div>
-                ))}
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 bg-black text-white rounded-full flex items-center justify-center font-black text-lg">2</div>
+                    <p className="font-black uppercase text-xs tracking-widest text-center">Rosto Frontal</p>
+                    <p className="text-xs text-gray-600 text-center">Posicione seu rosto de frente para a câmera, sem óculos</p>
+                  </div>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 bg-black text-white rounded-full flex items-center justify-center font-black text-lg">3</div>
+                    <p className="font-black uppercase text-xs tracking-widest text-center">Fundo Simples</p>
+                    <p className="text-xs text-gray-600 text-center">Prefira fundos neutros para melhor resultado da IA</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative group max-w-md mx-auto">
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFotoUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                <div className="border-2 border-dashed border-gray-200 rounded-[40px] p-16 group-hover:border-black transition-all">
+                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-black group-hover:text-white transition-all">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth="2" strokeLinecap="round"/></svg>
+                  </div>
+                  <p className="font-bold uppercase text-xs tracking-widest">Carregar Foto</p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {step === 'result' && imagemResultado && (
-          <div className="text-center space-y-8">
-            <div className="aspect-square relative max-w-xl mx-auto rounded-[40px] overflow-hidden shadow-2xl border">
-              <Image src={imagemResultado} alt="Resultado" fill className="object-contain bg-gray-50" unoptimized />
+          {step === 'select' && (
+            <div className="grid md:grid-cols-3 gap-8">
+              <div className="md:col-span-1">
+                <div className="aspect-[3/4] relative rounded-3xl overflow-hidden shadow-2xl">
+                  {fotoCliente && <Image src={fotoCliente} alt="Sua foto" fill className="object-cover" />}
+                  <button onClick={resetar} className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest">Trocar Foto</button>
+                </div>
+              </div>
+              <div className="md:col-span-2 space-y-6">
+                <h3 className="text-2xl font-black uppercase tracking-tighter">Escolha seu Óculos</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {produtos.map((p) => (
+                    <div key={p.id} onClick={() => gerarTryOn(p)} className="group cursor-pointer border rounded-2xl p-4 hover:border-black transition-all">
+                      <div className="aspect-square relative mb-4">
+                        <Image src={p.thumbnail} alt={p.nome} fill className="object-contain group-hover:scale-110 transition-all" unoptimized />
+                      </div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">{p.marca}</p>
+                      <p className="text-xs font-bold truncate">{p.nome}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="flex gap-4 justify-center">
-              <a href={imagemResultado} download className="bg-black text-white px-8 py-4 rounded-2xl font-bold uppercase text-xs tracking-widest">Baixar Foto</a>
-              <button onClick={() => setStep('select')} className="border-2 border-black px-8 py-4 rounded-2xl font-bold uppercase text-xs tracking-widest">Tentar Outro</button>
+          )}
+
+          {step === 'result' && imagemResultado && (
+            <div className="text-center space-y-8">
+              <div className="aspect-square relative max-w-xl mx-auto rounded-[40px] overflow-hidden shadow-2xl border">
+                <Image src={imagemResultado} alt="Resultado" fill className="object-contain bg-gray-50" unoptimized />
+              </div>
+              <div className="flex gap-4 justify-center">
+                <a href={imagemResultado} download className="bg-black text-white px-8 py-4 rounded-2xl font-bold uppercase text-xs tracking-widest">Baixar Foto</a>
+                <button onClick={() => setStep('select')} className="border-2 border-black px-8 py-4 rounded-2xl font-bold uppercase text-xs tracking-widest">Tentar Outro</button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-200 py-8 px-4 md:px-8 bg-gray-50">
+        <div className="max-w-4xl mx-auto text-center">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">
+            Desenvolvido por <span className="text-black">CodeWest.IA</span>
+          </p>
+          <p className="text-[10px] text-gray-400 uppercase tracking-widest">
+            © 2026 Modesty Company. Todos os direitos reservados.
+          </p>
+        </div>
+      </footer>
 
       {loading && (
         <div className="fixed inset-0 bg-white/90 backdrop-blur-md z-50 flex flex-center items-center justify-center flex-col gap-6">
@@ -232,6 +273,6 @@ export default function Home() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   )
 }
