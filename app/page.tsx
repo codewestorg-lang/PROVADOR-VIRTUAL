@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 
 // URLs dos webhooks n8n
@@ -10,18 +10,16 @@ const N8N_TRYON_URL = process.env.NEXT_PUBLIC_N8N_TRYON_URL || 'https://testes-n
 interface Produto {
   id: number
   nome: string
-  preco: string
   imagem: string
-  descricao: string
-  categoria: string
-  url?: string
+  thumbnail: string
+  preco: string
+  marca: string
+  url: string
+  descricao?: string
+  categoria?: string
 }
 
 export default function Home() {
-  console.log('🚀 App Initialized');
-  console.log('🔗 Webhook Produtos:', N8N_PRODUTOS_URL);
-  console.log('🔗 Webhook TryOn:', N8N_TRYON_URL);
-
   const [step, setStep] = useState<'upload' | 'select' | 'result'>('upload')
   const [fotoCliente, setFotoCliente] = useState<string | null>(null)
   const [produtos, setProdutos] = useState<Produto[]>([])
@@ -31,6 +29,13 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Logs de inicialização para debug na Vercel
+  useEffect(() => {
+    console.log('🚀 Provador Virtual Inicializado')
+    console.log('📍 Webhook Produtos:', N8N_PRODUTOS_URL)
+    console.log('📍 Webhook Try-on:', N8N_TRYON_URL)
+  }, [])
+
   // Upload da foto do cliente
   const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -38,11 +43,6 @@ export default function Home() {
 
     if (!file.type.startsWith('image/')) {
       setError('Por favor, selecione uma imagem válida')
-      return
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError('A imagem deve ter no máximo 5MB')
       return
     }
 
@@ -55,7 +55,6 @@ export default function Home() {
         const base64 = reader.result as string
         setFotoCliente(base64)
         await buscarProdutos()
-        setLoading(false)
       }
       reader.onerror = () => {
         setError('Erro ao processar a imagem')
@@ -68,497 +67,239 @@ export default function Home() {
     }
   }
 
-  // 🔧 FUNÇÃO CORRIGIDA - Buscar produtos
   const buscarProdutos = async () => {
+    setLoading(true)
+    setError(null)
+    console.log('🔍 Iniciando busca de produtos...')
+    
     try {
-      console.log('🔍 Buscando produtos...')
-      console.log('🔗 URL:', N8N_PRODUTOS_URL)
-      
       const response = await fetch(N8N_PRODUTOS_URL, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
       })
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`)
       }
-      
+
       let data = await response.json()
-      console.log('📦 Resposta do n8n (raw):', data)
-      console.log('📦 Tipo de data:', typeof data, Array.isArray(data) ? '(array)' : '(objeto)')
-      
-      // 🔧 FIX 1: Se a resposta for um array, extrair o primeiro elemento
+      console.log('📦 Dados brutos recebidos:', data)
+
+      // TRATAMENTO DE ARRAY (Problema identificado anteriormente)
       if (Array.isArray(data) && data.length > 0) {
         console.log('⚠️ Resposta é um array, extraindo primeiro elemento...')
         data = data[0]
-        console.log('📦 Dados após extração:', data)
       }
-      
-      // Extrair array de produtos de forma robusta
+
       let oculosArray: any[] = []
-      
       if (data.oculos && Array.isArray(data.oculos)) {
-        console.log('✅ Encontrado data.oculos')
         oculosArray = data.oculos
-      } else if (Array.isArray(data)) {
-        console.log('✅ data é um array direto')
-        oculosArray = data
       } else if (data.produtos && Array.isArray(data.produtos)) {
-        console.log('✅ Encontrado data.produtos')
         oculosArray = data.produtos
-      } else if (data.items && Array.isArray(data.items)) {
-        console.log('✅ Encontrado data.items')
-        oculosArray = data.items
-      } else if (data.data && Array.isArray(data.data)) {
-        console.log('✅ Encontrado data.data')
-        oculosArray = data.data
-      } else {
-        console.warn('⚠️ Estrutura de dados não reconhecida:', Object.keys(data))
+      } else if (Array.isArray(data)) {
+        oculosArray = data
       }
-      
-      console.log('👓 Array extraído:', oculosArray)
-      console.log('👓 Quantidade de produtos:', oculosArray.length)
-      
-      if (!Array.isArray(oculosArray) || oculosArray.length === 0) {
-        console.warn('⚠️ Nenhum produto encontrado')
-        setError('Nenhum produto de óculos encontrado. Verifique a categoria na Nuvemshop.')
-        setProdutos([])
+
+      if (oculosArray.length > 0) {
+        console.log(`✅ Sucesso! Encontrados ${oculosArray.length} óculos.`)
+        const formatados = oculosArray.map((item: any, index: number) => ({
+          id: item.id || index,
+          nome: item.nome || item.name || `Óculos ${index + 1}`,
+          imagem: item.imagem || item.image || '',
+          thumbnail: item.thumbnail || item.imagem || '',
+          preco: item.preco || item.price || '189.00',
+          marca: item.marca || 'MODESTY',
+          url: item.url || ''
+        }))
+        setProdutos(formatados)
         setStep('select')
-        return
+      } else {
+        console.warn('⚠️ Nenhum produto encontrado na resposta')
+        setError('Nenhum produto encontrado. Verifique a integração com a Nuvemshop.')
       }
-      
-      // Mapear produtos de forma robusta
-      const produtosFormatados: Produto[] = oculosArray.map((item: any, index: number) => {
-        console.log(`🔍 Processando produto ${index + 1}:`, item)
-        
-        // Garantir que sempre tem valores válidos
-        const produto: Produto = {
-          id: item.id || item.product_id || index + 1,
-          nome: item.nome || item.name || item.title || `Óculos ${index + 1}`,
-          preco: item.preco || item.price || item.valor || '189.00',
-          imagem: item.imagem || item.image || item.thumbnail || item.img || '',
-          descricao: item.descricao || item.description || item.nome || '',
-          categoria: item.categoria || (item.estilo && item.estilo[0]) || 'Óculos de Sol',
-          url: item.url || item.link || ''
-        }
-        
-        // Se o preço é "0.00", colocar um padrão
-        if (produto.preco === '0.00' || produto.preco === '0' || !produto.preco) {
-          produto.preco = '189.00'
-        }
-        
-        // 🔧 FIX 2: Validar se a imagem existe
-        if (!produto.imagem) {
-          console.warn(`⚠️ Produto ${produto.nome} não tem imagem`)
-        } else {
-          console.log(`✅ Produto ${produto.nome} - Imagem: ${produto.imagem.substring(0, 50)}...`)
-        }
-        
-        return produto
-      })
-      
-      console.log('✅ Produtos formatados:', produtosFormatados)
-      
-      setProdutos(produtosFormatados)
-      setStep('select')
-      
     } catch (err: any) {
       console.error('❌ Erro ao buscar produtos:', err)
-      console.error('❌ Stack:', err.stack)
-      setError(`Erro ao carregar produtos: ${err.message}`)
-      setProdutos([])
-      setStep('select')
+      setError(err.message || 'Erro ao carregar produtos.')
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Gerar try-on
   const gerarTryOn = async (produto: Produto) => {
     if (!fotoCliente) return
 
     setLoading(true)
     setError(null)
     setProdutoSelecionado(produto)
+    console.log('🎨 Iniciando geração de Try-on...')
 
     try {
-      console.log('🎨 Gerando try-on para:', produto.nome)
-      console.log('🔗 URL:', N8N_TRYON_URL)
-      
       const response = await fetch(N8N_TRYON_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fotoCliente: fotoCliente,
           produtoId: produto.id,
           imagemOculos: produto.imagem,
+          produtoNome: produto.nome
         }),
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        throw new Error(`Erro ao gerar provador: ${response.status}`)
       }
 
       const data = await response.json()
-      console.log('🎨 Resposta do try-on:', data)
-      
-      const imagemUrl = data.imagemGerada || data.imagem || data.url || data.imageUrl
+      console.log('🖼️ Resultado do Try-on:', data)
+
+      const imagemUrl = data.resultado_url || data.imagem_final || data.imagem || data.url
       
       if (imagemUrl) {
-        console.log('✅ Imagem gerada:', imagemUrl)
         setImagemResultado(imagemUrl)
         setStep('result')
       } else {
-        console.error('❌ Imagem não encontrada na resposta:', data)
-        throw new Error('Imagem não encontrada na resposta')
+        throw new Error('O webhook não retornou a URL da imagem processada.')
       }
     } catch (err: any) {
-      console.error('❌ Erro ao gerar try-on:', err)
-      setError(`Erro ao gerar prévia: ${err.message}`)
+      console.error('❌ Erro no Try-on:', err)
+      setError(err.message || 'Erro ao processar imagem.')
     } finally {
       setLoading(false)
     }
   }
 
-  // Resetar
   const resetar = () => {
-    console.log('🔄 Resetando aplicação')
     setStep('upload')
     setFotoCliente(null)
     setProdutos([])
     setProdutoSelecionado(null)
     setImagemResultado(null)
     setError(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  // ... (resto do código JSX permanece igual)
-  
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-white text-black font-sans">
       {/* Header Modesty Style */}
       <header className="border-b border-gray-200 py-6 px-4 bg-white sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight uppercase">
             MODESTY COMPANY <span className="text-xs align-super">®</span>
           </h1>
-          <div className="text-sm text-gray-600 hidden md:block">
-            PROVADOR VIRTUAL
+          <div className="text-sm text-gray-600 hidden md:block tracking-widest">
+            PROVADOR VIRTUAL IA
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8 md:py-16">
-        {/* Hero Section */}
-        <div className="text-center mb-12 md:mb-16">
-          <div className="inline-block mb-6">
-            <div className="text-xs tracking-[0.3em] uppercase text-gray-500 mb-3">
-              Experimente com IA
-            </div>
-            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">
-              PROVADOR VIRTUAL
-            </h2>
-            <div className="h-[2px] w-16 bg-black mx-auto"></div>
-          </div>
-          <p className="text-base md:text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
-            Veja como nossos óculos ficam em você antes de comprar.<br />
-            Tecnologia de inteligência artificial em segundos.
-          </p>
-        </div>
-
-        {/* Error Message */}
+      <div className="max-w-7xl mx-auto px-4 py-8 md:py-12">
         {error && (
-          <div className="mb-8 p-4 bg-black text-white text-center text-sm tracking-wide">
-            ⚠ {error}
+          <div className="mb-8 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm">
+            <strong>Erro:</strong> {error}
           </div>
         )}
 
-        {/* Step 1: Upload da Foto */}
+        {/* Step 1: Upload */}
         {step === 'upload' && (
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-white border-2 border-black p-8 md:p-12">
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-20 h-20 border-2 border-black mb-6">
-                  <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <div className="text-xs tracking-[0.2em] uppercase text-gray-500 mb-3">
-                  Passo 1 de 3
-                </div>
-                <h3 className="text-2xl font-bold tracking-tight mb-3 uppercase">
-                  Envie sua foto
-                </h3>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Use uma foto de rosto frontal com boa iluminação<br />
-                  para melhores resultados
-                </p>
-              </div>
+          <div className="max-w-2xl mx-auto text-center space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-4xl font-black uppercase tracking-tighter">Experimente Agora</h2>
+              <p className="text-gray-500 max-w-md mx-auto">Tire uma foto ou escolha um arquivo para começar sua experiência de provador virtual.</p>
+            </div>
 
-              <div className="space-y-6">
-                <label className="block">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFotoUpload}
-                    className="hidden"
-                    disabled={loading}
-                  />
-                  <div className="cursor-pointer border-2 border-dashed border-gray-300 hover:border-black transition-colors p-12 text-center">
-                    {loading ? (
-                      <div className="flex flex-col items-center">
-                        <div className="w-12 h-12 border-2 border-black border-t-transparent rounded-full animate-spin mb-4"></div>
-                        <p className="text-sm uppercase tracking-wider">Processando...</p>
-                      </div>
-                    ) : (
-                      <>
-                        <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                          <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        <p className="text-sm uppercase tracking-wider mb-2">
-                          Clique para selecionar
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          JPG, PNG ou WEBP (máx. 5MB)
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </label>
-
-                <div className="text-xs text-gray-500 space-y-2">
-                  <p className="font-bold uppercase tracking-wider">Dicas para melhor resultado:</p>
-                  <ul className="space-y-1 pl-4">
-                    <li className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>Rosto frontal e centralizado</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>Boa iluminação natural</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>Sem óculos na foto original</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>Expressão neutra funciona melhor</span>
-                    </li>
-                  </ul>
+            <div className="border-2 border-dashed border-gray-200 p-12 rounded-3xl hover:border-black transition-colors group relative">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFotoUpload}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                disabled={loading}
+              />
+              <div className="space-y-4">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto group-hover:bg-black group-hover:text-white transition-colors">
+                  {loading ? (
+                    <div className="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v16m8-8H4"></path></svg>
+                  )}
                 </div>
+                <p className="font-bold uppercase tracking-widest text-sm">{loading ? 'Processando...' : 'Enviar Foto'}</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Step 2: Seleção de Produto */}
+        {/* Step 2: Seleção */}
         {step === 'select' && (
-          <div>
-            <div className="text-center mb-12">
-              <div className="text-xs tracking-[0.2em] uppercase text-gray-500 mb-3">
-                Passo 2 de 3
-              </div>
-              <h3 className="text-3xl font-bold tracking-tight mb-4 uppercase">
-                Escolha seu óculos
-              </h3>
-              <div className="h-[2px] w-16 bg-black mx-auto mb-6"></div>
-              
-              {fotoCliente && (
-                <div className="inline-block">
-                  <div className="relative w-24 h-24 border-2 border-black overflow-hidden">
-                    <Image
-                      src={fotoCliente}
-                      alt="Sua foto"
-                      fill
-                      className="object-cover"
-                    />
+          <div className="space-y-12">
+            <div className="flex flex-col md:flex-row gap-12 items-start">
+              <div className="w-full md:w-1/3 sticky top-32">
+                <div className="aspect-[3/4] relative rounded-3xl overflow-hidden border border-gray-100 shadow-2xl">
+                  {fotoCliente && <Image src={fotoCliente} alt="Sua foto" fill className="object-cover" />}
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <button onClick={resetar} className="w-full bg-white/90 backdrop-blur py-3 rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg">Trocar Foto</button>
                   </div>
-                  <p className="text-xs uppercase tracking-wider text-gray-500 mt-2">Sua Foto</p>
                 </div>
-              )}
-            </div>
-
-            {produtos.length === 0 ? (
-              <div className="text-center py-20">
-                <p className="text-sm uppercase tracking-wider text-gray-500 mb-4">
-                  {error || 'Nenhum produto encontrado'}
-                </p>
-                <button
-                  onClick={resetar}
-                  className="bg-black text-white px-8 py-3 text-xs uppercase tracking-wider font-bold"
-                >
-                  Tentar Novamente
-                </button>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {produtos.map((produto) => (
-                  <div
-                    key={produto.id}
-                    className="group cursor-pointer"
-                    onClick={() => !loading && gerarTryOn(produto)}
-                  >
-                    <div className="relative bg-gray-50 mb-4 overflow-hidden border-2 border-transparent group-hover:border-black transition-all">
-                      <div className="aspect-square relative">
-                        {produto.imagem ? (
-                          <Image
-                            src={produto.imagem}
-                            alt={produto.nome}
-                            fill
-                            className="object-contain p-6 group-hover:scale-105 transition-transform duration-300"
-                            unoptimized
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full text-gray-400">
-                            Sem imagem
-                          </div>
-                        )}
+
+              <div className="w-full md:w-2/3 space-y-8">
+                <div className="space-y-2">
+                  <h2 className="text-3xl font-black uppercase tracking-tighter">Escolha o Modelo</h2>
+                  <p className="text-gray-500">Selecione um dos modelos abaixo para aplicar em sua foto.</p>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
+                  {produtos.map((produto) => (
+                    <div 
+                      key={produto.id} 
+                      onClick={() => !loading && gerarTryOn(produto)}
+                      className={`group cursor-pointer space-y-4 p-4 rounded-2xl border-2 transition-all ${produtoSelecionado?.id === produto.id ? 'border-black bg-gray-50' : 'border-transparent hover:bg-gray-50'}`}
+                    >
+                      <div className="aspect-square relative bg-white rounded-xl overflow-hidden">
+                        <Image src={produto.thumbnail || produto.imagem} alt={produto.nome} fill className="object-contain p-4 group-hover:scale-110 transition-transform" unoptimized />
                       </div>
-                      {loading && produtoSelecionado?.id === produto.id && (
-                        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
-                          <div className="w-12 h-12 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                      )}
+                      <div className="text-center space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{produto.marca}</p>
+                        <p className="text-sm font-bold truncate">{produto.nome}</p>
+                        <p className="text-xs font-medium">R$ {produto.preco}</p>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <h4 className="font-bold text-sm uppercase tracking-wide mb-1">
-                        {produto.nome}
-                      </h4>
-                      <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-                        {produto.categoria}
-                      </p>
-                      <p className="text-lg font-bold mb-3">
-                        R$ {produto.preco}
-                      </p>
-                      <button
-                        disabled={loading}
-                        className="w-full bg-black text-white py-3 text-xs uppercase tracking-wider font-bold hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                      >
-                        {loading && produtoSelecionado?.id === produto.id ? 'GERANDO...' : 'EXPERIMENTAR'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            )}
-
-            <div className="mt-12 text-center">
-              <button
-                onClick={resetar}
-                className="text-sm uppercase tracking-wider text-gray-600 hover:text-black underline underline-offset-4"
-              >
-                ← Trocar Foto
-              </button>
             </div>
           </div>
         )}
 
         {/* Step 3: Resultado */}
         {step === 'result' && imagemResultado && (
-          <div>
-            <div className="text-center mb-12">
-              <div className="text-xs tracking-[0.2em] uppercase text-gray-500 mb-3">
-                Passo 3 de 3
-              </div>
-              <h3 className="text-3xl font-bold tracking-tight mb-2 uppercase">
-                Resultado
-              </h3>
-              <div className="h-[2px] w-16 bg-black mx-auto mb-4"></div>
-              {produtoSelecionado && (
-                <p className="text-sm uppercase tracking-wider text-gray-600">
-                  {produtoSelecionado.nome}
-                </p>
-              )}
+          <div className="max-w-4xl mx-auto space-y-8 text-center">
+            <div className="space-y-2">
+              <h2 className="text-4xl font-black uppercase tracking-tighter">Seu Novo Look</h2>
+              <p className="text-gray-500">O que achou? Você pode baixar a foto ou tentar outro modelo.</p>
             </div>
 
-            <div className="max-w-5xl mx-auto">
-              <div className="grid md:grid-cols-2 gap-8 mb-12">
-                {/* Foto Original */}
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-gray-500 mb-3 text-center">
-                    Foto Original
-                  </div>
-                  <div className="relative aspect-square border-2 border-gray-200 overflow-hidden bg-gray-50">
-                    {fotoCliente && (
-                      <Image
-                        src={fotoCliente}
-                        alt="Original"
-                        fill
-                        className="object-cover"
-                      />
-                    )}
-                  </div>
-                </div>
+            <div className="aspect-square relative max-w-2xl mx-auto rounded-3xl overflow-hidden shadow-2xl border border-gray-100">
+              <Image src={imagemResultado} alt="Resultado" fill className="object-contain bg-gray-50" unoptimized />
+            </div>
 
-                {/* Resultado */}
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-gray-500 mb-3 text-center">
-                    Com os Óculos
-                  </div>
-                  <div className="relative aspect-square border-2 border-black overflow-hidden bg-gray-50">
-                    <Image
-                      src={imagemResultado}
-                      alt="Resultado"
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Ações */}
-              <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
-                <button
-                  onClick={resetar}
-                  className="bg-white border-2 border-black text-black px-8 py-3 text-xs uppercase tracking-wider font-bold hover:bg-gray-50 transition-colors"
-                >
-                  ← Experimentar Outro
-                </button>
-                
-                {produtoSelecionado?.url && (
-                  <a
-                    href={produtoSelecionado.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-black text-white px-8 py-3 text-xs uppercase tracking-wider font-bold hover:bg-gray-800 transition-colors"
-                  >
-                    Comprar Agora →
-                  </a>
-                )}
-                
-                <a
-                  href={imagemResultado}
-                  download="provador-virtual-modesty.jpg"
-                  className="text-sm uppercase tracking-wider text-gray-600 hover:text-black underline underline-offset-4"
-                >
-                  ↓ Baixar Imagem
-                </a>
-              </div>
+            <div className="flex flex-col md:flex-row gap-4 justify-center pt-4">
+              <a href={imagemResultado} download="meu-look-modesty.png" className="bg-black text-white px-12 py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors">Baixar Foto</a>
+              <button onClick={() => setStep('select')} className="border-2 border-black px-12 py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-gray-50 transition-colors">Tentar Outro</button>
+              <button onClick={resetar} className="text-gray-400 hover:text-black text-xs font-bold uppercase tracking-widest py-4">Começar do Zero</button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-200 py-8 px-4 mt-16">
-        <div className="max-w-7xl mx-auto text-center">
-          <p className="text-xs uppercase tracking-wider text-gray-500">
-            MODESTY COMPANY <span className="align-super text-[0.6rem]">®</span> 2026
-          </p>
-          <p className="text-xs text-gray-400 mt-2">
-            Powered by AI Technology
-          </p>
+      {loading && (
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex items-center justify-center flex-col gap-4">
+          <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-xs font-black uppercase tracking-[0.3em] animate-pulse">Processando IA...</p>
         </div>
-      </footer>
+      )}
     </main>
   )
 }
