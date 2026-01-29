@@ -116,7 +116,7 @@ export default function Home() {
         setStep('select')
       } else {
         console.warn('⚠️ Nenhum produto encontrado na resposta')
-        setError('Nenhum produto encontrado. Verifique a integração com a Nuvemshop.')
+        setError(`Nenhum produto encontrado. Resposta do n8n: ${JSON.stringify(data).substring(0, 100)}...`)
       }
     } catch (err: any) {
       console.error('❌ Erro ao buscar produtos:', err)
@@ -195,8 +195,14 @@ export default function Home() {
 
       <div className="max-w-7xl mx-auto px-4 py-8 md:py-12">
         {error && (
-          <div className="mb-8 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm">
-            <strong>Erro:</strong> {error}
+          <div className="mb-8 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm flex flex-col gap-2">
+            <div><strong>Erro:</strong> {error}</div>
+            <button 
+              onClick={() => buscarProdutos()} 
+              className="w-fit bg-red-600 text-white px-4 py-1 rounded text-xs font-bold uppercase"
+            >
+              Tentar Novamente
+            </button>
           </div>
         )}
 
